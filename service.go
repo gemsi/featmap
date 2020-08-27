@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/amborle/featmap/lexorank"
@@ -25,6 +26,7 @@ type Service interface {
 	SetAuth(x *jwtauth.JWTAuth)
 	SetWorkspaceObject(a *Workspace)
 	SetSubscriptionObject(x *Subscription)
+	UpdateLatestActivityNow()
 
 	GetConfig() Configuration
 	GetDBObject() *sqlx.DB
@@ -33,8 +35,8 @@ type Service interface {
 	GetAccountObject() *Account
 	GetWorkspaceObject() *Workspace
 	GetSubscriptionObject() *Subscription
-
-	SendEmail(smtpServer string, smtpUser string, smtpPass string, from string, recipient string, subject string, body string) error
+	
+	SendEmail(smtpServer string, smtpPort string, smtpUser string, smtpPass string, from string, recipient string, subject string, body string) error
 
 	Register(workspaceName string, name string, email string, password string) (*Workspace, *Account, *Member, error)
 	Login(email string, password string) (*Account, error)
@@ -103,6 +105,8 @@ type Service interface {
 	DeleteWorkflow(id string) error
 	UpdateWorkflowDescription(id string, d string) (*Workflow, error)
 	ChangeColorOnWorkflow(id string, color string) (*Workflow, error)
+	CloseWorkflow(id string) (*Workflow, error)
+	OpenWorkflow(id string) (*Workflow, error)
 
 	CreateSubWorkflowWithID(id string, workflowID string, title string) (*SubWorkflow, error)
 	MoveSubWorkflow(id string, toWorkflowID string, index int) (*SubWorkflow, error)
@@ -111,6 +115,8 @@ type Service interface {
 	DeleteSubWorkflow(id string) error
 	UpdateSubWorkflowDescription(id string, d string) (*SubWorkflow, error)
 	ChangeColorOnSubWorkflow(id string, color string) (*SubWorkflow, error)
+	CloseSubWorkflow(id string) (*SubWorkflow, error)
+	OpenSubWorkflow(id string) (*SubWorkflow, error)
 
 	GetFeaturesByProject(id string) []*Feature
 	MoveFeature(id string, toMilestoneID string, toSubWorkflowID string, index int) (*Feature, error)
@@ -155,11 +161,18 @@ func (s *service) GetSubscriptionObject() *Subscription { return s.Subscription 
 func (s *service) GetMemberObject() *Member             { return s.Member }
 func (s *service) GetWorkspaceObject() *Workspace       { return s.ws }
 
+
+func (s *service) UpdateLatestActivityNow() {
+	acc := s.GetAccountObject()
+	acc.LatestActivity = time.Now().UTC()
+	s.r.StoreAccount(acc)
+}
+
 func (s *service) Register(workspaceName string, name string, email string, password string) (*Workspace, *Account, *Member, error) {
 
 	workspaceName = govalidator.Trim(workspaceName, "")
 	name = govalidator.Trim(name, "")
-	email = govalidator.Trim(email, "")
+	email = strings.ToLower(govalidator.Trim(email, ""))
 
 	if !govalidator.IsEmail(email) {
 		return nil, nil, nil, errors.New("email_invalid")
@@ -257,7 +270,7 @@ func (s *service) Register(workspaceName string, name string, email string, pass
 		return nil, nil, nil, err
 	}
 
-	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, acc.EmailConfirmationSentTo, "Welcome to Featmap!", body)
+	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPPort, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, acc.EmailConfirmationSentTo, "Welcome to Featmap!", body)
 	if err != nil {
 		log.Println("error sending mail")
 	}
@@ -283,7 +296,7 @@ func (s *service) DeleteAccount() error {
 
 func (s *service) Login(email string, password string) (*Account, error) {
 
-	acc, err := s.r.GetAccountByEmail(email)
+	acc, err := s.r.GetAccountByEmail(strings.ToLower(email))
 	if acc == nil {
 		return nil, errors.Wrap(err, "email not found")
 	}
@@ -585,7 +598,7 @@ func (s *service) ChangeAllowExternalSharing(value bool) error {
 
 func (s *service) CreateInvite(email string, level string) (*Invite, error) {
 
-	email = govalidator.Trim(email, "")
+	email = strings.ToLower(govalidator.Trim(email, ""))
 
 	if !govalidator.IsEmail(email) {
 		return nil, errors.New("email invalid")
@@ -663,7 +676,7 @@ func (s *service) SendInvitationMail(invitationID string) error {
 		return err
 	}
 
-	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, invite.Email, "Featmap: invitation to join a workspace", body)
+	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPPort, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, invite.Email, "Featmap: invitation to join a workspace", body)
 	if err != nil {
 		log.Println("error sending mail")
 	}
@@ -809,7 +822,6 @@ func (s *service) CreateProjectWithID(id string, title string) (*Project, error)
 		WorkspaceID:   s.Member.WorkspaceID,
 		ID:            id,
 		Title:         title,
-		CreatedBy:     s.Member.ID,
 		CreatedAt:     time.Now().UTC(),
 		CreatedByName: s.Acc.Name,
 		ExternalLink:  uuid.Must(uuid.NewV4(), nil).String(),
@@ -899,7 +911,6 @@ func (s *service) CreateMilestoneWithID(id string, projectID string, title strin
 		Title:         title,
 		Status:        "OPEN",
 		Rank:          "",
-		CreatedBy:     s.Member.ID,
 		CreatedAt:     time.Now().UTC(),
 		CreatedByName: s.Acc.Name,
 		Color:         "WHITE",
@@ -1086,10 +1097,10 @@ func (s *service) CreateWorkflowWithID(id string, projectID string, title string
 		ID:            id,
 		Title:         title,
 		Rank:          "",
-		CreatedBy:     s.Member.ID,
 		CreatedAt:     time.Now().UTC(),
 		CreatedByName: s.Acc.Name,
 		Color:         "WHITE",
+		Status:        "OPEN",
 	}
 
 	n := len(ww)
@@ -1222,6 +1233,36 @@ func (s *service) ChangeColorOnWorkflow(id string, color string) (*Workflow, err
 	return p, nil
 }
 
+func (s *service) CloseWorkflow(id string) (*Workflow, error) {
+	p, err := s.r.GetWorkflow(s.Member.WorkspaceID, id)
+	if p == nil {
+		return nil, err
+	}
+
+	p.Status = "CLOSED"
+	p.LastModifiedByName = s.Acc.Name
+	p.LastModified = time.Now().UTC()
+
+	s.r.StoreWorkflow(p)
+
+	return p, nil
+}
+
+func (s *service) OpenWorkflow(id string) (*Workflow, error) {
+	p, err := s.r.GetWorkflow(s.Member.WorkspaceID, id)
+	if p == nil {
+		return nil, err
+	}
+
+	p.Status = "OPEN"
+	p.LastModifiedByName = s.Acc.Name
+	p.LastModified = time.Now().UTC()
+
+	s.r.StoreWorkflow(p)
+
+	return p, nil
+}
+
 // SubWorkflow
 func (s *service) CreateSubWorkflowWithID(id string, workflowID string, title string) (*SubWorkflow, error) {
 
@@ -1243,10 +1284,10 @@ func (s *service) CreateSubWorkflowWithID(id string, workflowID string, title st
 		ID:            id,
 		Title:         title,
 		Rank:          "",
-		CreatedBy:     s.Member.ID,
 		CreatedAt:     time.Now().UTC(),
 		CreatedByName: s.Acc.Name,
 		Color:         "WHITE",
+		Status:        "OPEN",
 	}
 
 	n := len(mm)
@@ -1379,6 +1420,36 @@ func (s *service) ChangeColorOnSubWorkflow(id string, color string) (*SubWorkflo
 	return p, nil
 }
 
+func (s *service) CloseSubWorkflow(id string) (*SubWorkflow, error) {
+	p, err := s.r.GetSubWorkflow(s.Member.WorkspaceID, id)
+	if p == nil {
+		return nil, err
+	}
+
+	p.Status = "CLOSED"
+	p.LastModifiedByName = s.Acc.Name
+	p.LastModified = time.Now().UTC()
+
+	s.r.StoreSubWorkflow(p)
+
+	return p, nil
+}
+
+func (s *service) OpenSubWorkflow(id string) (*SubWorkflow, error) {
+	p, err := s.r.GetSubWorkflow(s.Member.WorkspaceID, id)
+	if p == nil {
+		return nil, err
+	}
+
+	p.Status = "OPEN"
+	p.LastModifiedByName = s.Acc.Name
+	p.LastModified = time.Now().UTC()
+
+	s.r.StoreSubWorkflow(p)
+
+	return p, nil
+}
+
 // Features
 
 func (s *service) CreateFeatureWithID(id string, subWorkflowID string, milestoneID string, title string) (*Feature, error) {
@@ -1405,7 +1476,6 @@ func (s *service) CreateFeatureWithID(id string, subWorkflowID string, milestone
 		Rank:          "",
 		Description:   "",
 		Status:        "OPEN",
-		CreatedBy:     s.Member.ID,
 		CreatedAt:     time.Now().UTC(),
 		CreatedByName: s.Acc.Name,
 		Color:         "WHITE",
@@ -1579,7 +1649,7 @@ func validateTitle(title string) (string, error) {
 	if len(title) < 1 {
 		return title, errors.New("title too short")
 	}
-	if len(title) > 50 {
+	if len(title) > 200 {
 		return title, errors.New("title too long")
 	}
 
@@ -1612,14 +1682,17 @@ func (s *service) ConfirmEmail(key string) error {
 }
 
 func (s *service) UpdateEmail(email string) error {
-	dupacc, _ := s.r.GetAccountByEmail(email)
+
+	em := strings.ToLower(email)
+
+	dupacc, _ := s.r.GetAccountByEmail(em)
 	if dupacc != nil {
 		return errors.New("email_taken")
 	}
 
 	a := s.Acc
 
-	a.EmailConfirmationSentTo = email
+	a.EmailConfirmationSentTo = em
 	a.EmailConfirmationKey = uuid.Must(uuid.NewV4(), nil).String()
 	a.EmailConfirmationPending = true
 
@@ -1630,7 +1703,7 @@ func (s *service) UpdateEmail(email string) error {
 		log.Println(err)
 	}
 
-	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, email, "Welcome to Featmap!", body)
+	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPPort, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, em, "Welcome to Featmap!", body)
 	if err != nil {
 		log.Println("error sending mail")
 	}
@@ -1665,7 +1738,7 @@ func (s *service) ResendEmail() error {
 
 	body, _ := ChangeEmailBody(emailBody{s.config.AppSiteURL, a.EmailConfirmationSentTo, a.EmailConfirmationKey})
 
-	err := s.SendEmail(s.config.SMTPServer, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, a.EmailConfirmationSentTo, "Featmap: verify your email adress", body)
+	err := s.SendEmail(s.config.SMTPServer, s.config.SMTPPort, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, a.EmailConfirmationSentTo, "Featmap: verify your email adress", body)
 	if err != nil {
 		log.Println("error sending mail")
 	}
@@ -1681,7 +1754,7 @@ func (s *service) SendResetEmail(email string) error {
 
 	body, _ := ResetPasswordBody(resetPasswordBody{s.config.AppSiteURL, email, a.PasswordResetKey})
 
-	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, email, "Featmap: request to reset password", body)
+	err = s.SendEmail(s.config.SMTPServer, s.config.SMTPPort, s.config.SMTPUser, s.config.SMTPPass, s.config.EmailFrom, email, "Featmap: request to reset password", body)
 	if err != nil {
 		log.Println("error sending mail")
 	}

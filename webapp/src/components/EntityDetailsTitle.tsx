@@ -6,7 +6,7 @@ import { deleteSubWorkflow, updateSubWorkflow, createSubWorkflow } from '../stor
 import { deleteWorkflow, updateWorkflow, createWorkflow } from '../store/workflows/actions';
 import { deleteFeature, updateFeature, createFeature } from '../store/features/actions';
 import { deleteProject, updateProject, createProject } from '../store/projects/actions';
-import { Formik, FormikActions, FormikProps, Form, Field, FieldProps } from 'formik';
+import { Formik, FormikHelpers as FormikActions, FormikProps, Form, Field, FieldProps } from 'formik';
 import { API_RENAME_MILESTONE } from "../api";
 import { API_RENAME_SUBWORKFLOW, } from "../api";
 import { API_RENAME_WORKFLOW } from "../api";
@@ -251,6 +251,8 @@ class EntityDetailsTitle extends Component<Props, State> {
         let closed = false
         switch (this.props.card.kind) {
             case "milestone":
+            case "subworkflow":
+            case "workflow":
             case "feature": {
                 closed = this.props.card.status === "CLOSED"
                 break;
@@ -273,7 +275,8 @@ class EntityDetailsTitle extends Component<Props, State> {
                     })}
 
                     onSubmit={this.submit}
-                    render={(formikBag: FormikProps<{ title: string }>) => {
+                >
+                    {(formikBag: FormikProps<{ title: string }>) => {
 
                         this.submitForm = formikBag.submitForm
 
@@ -288,15 +291,16 @@ class EntityDetailsTitle extends Component<Props, State> {
                                 {this.state.edit ?
                                     <Field
                                         name="title"
-                                        render={({ field, form }: FieldProps<{ title: string }>) => (
+                                    >
+                                        {({ form }: FieldProps<{ title: string }>) => (
                                             <div className="flex flex-col ">
                                                 <div >
-                                                    <input autoFocus onFocus={handleFocus} type="text" {...field} placeholder="Title" id="title" className="rounded p-2  border w-full  text-xl	"/>
+                                                    <input autoFocus onFocus={handleFocus} type="text" value={form.values.title} onChange={form.handleChange} placeholder="Title" id="title" className="rounded p-2  border w-full  text-xl	" />
                                                 </div>
                                                 <div className="p-1 text-red-500 text-xs font-bold">{form.touched.title && form.errors.title}</div>
                                             </div>
                                         )}
-                                    />
+                                    </Field>
                                     :
                                     <div className="text-xl mt-2 ml-2 border border-white">
                                         {this.props.viewOnly || closed ? <span className={closed ? "line-through" : ""}> {this.props.card.title}</span> : <button onClick={() => this.setState({ edit: true })}>{this.props.card.title}</button>}
@@ -306,7 +310,7 @@ class EntityDetailsTitle extends Component<Props, State> {
 
                         )
                     }}
-                />
+                </Formik>
             </div>)
 
     }

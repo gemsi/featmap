@@ -6,7 +6,7 @@ import { createProject } from '../store/projects/actions';
 import { Dispatch } from "react";
 import { AllActions } from "../store";
 import { IProject } from "../store/projects/types";
-import { Formik, FormikActions, FormikProps, Form, Field, FieldProps } from 'formik';
+import { Formik, FormikHelpers as FormikActions, FormikProps, Form, Field, FieldProps } from 'formik';
 import { API_CREATE_PROJECT } from "../api";
 import { v4 as uuid } from 'uuid'
 import * as Yup from 'yup';
@@ -128,7 +128,8 @@ class CreateProjectModal extends Component<Props, State> {
 
               actions.setSubmitting(false)
             }}
-            render={(formikBag: FormikProps<formValues>) => (
+          >
+            {(formikBag: FormikProps<formValues>) => (
               <Form>
                 {formikBag.status && formikBag.status.msg && <div>{formikBag.status.msg}</div>}
 
@@ -137,17 +138,14 @@ class CreateProjectModal extends Component<Props, State> {
 
                   <div>
 
-                    <Field
-                      name="title"
-                      render={({ field, form }: FieldProps<formValues>) => (
-
+                    <Field name="title" >
+                      {({ form }: FieldProps<formValues>) => (
                         <div className="flex flex-col">
-                          <div><input autoFocus type="text" {...field} placeholder="Title" id="title" className="rounded p-2 border w-full	"/></div>
+                          <div><input autoFocus type="text" value={form.values.title} onChange={form.handleChange} placeholder="Title" id="title" className="rounded p-2 border w-full	" /></div>
                           <div className="p-1 text-red-500 text-xs font-bold">{form.touched.title && form.errors.title}</div>
                         </div>
-
                       )}
-                    />
+                    </Field>
                   </div>
 
                   <div className="flex justify-end">
@@ -164,7 +162,7 @@ class CreateProjectModal extends Component<Props, State> {
 
               </Form>
             )}
-          />
+          </Formik>
         </div>
       </div>
     );

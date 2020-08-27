@@ -1,5 +1,9 @@
 # Featmap, the simple user story mapping tool
-Featmap is a simple user story mapping tool for product managers to build, plan and communicate product backlogs. It is built using React, Typescript and Go. Try it out at [www.featmap.com](https://www.featmap.com).
+
+![](https://github.com/amborle/featmap/workflows/ci/badge.svg)
+
+Featmap is a simple user story mapping tool for product managers to build, plan and communicate product backlogs. It is built using React, Typescript and Go.
+
 
 ![Featmap screenshot](screenshot.png)
 
@@ -22,13 +26,14 @@ Here's a sample  ```conf.json```
 {  
   "appSiteURL": "http://localhost/",
   "dbConnectionString": "postgresql://featmap:featmap@localhost:5432/featmap?sslmode=disable",
-  "jwtSecret": "mC3qd44x5hr5YaRhaj5pM5L",
+  "jwtSecret": "ChangeMeForProduction",
   "port": "80",
   "emailFrom" : "contact@example.com",
   "smtpServer" : "smtp.example.com",
+  "smtpPort": "587",
   "smtpUser" : "postmaster@mail.example.com",
   "smtpPass": "some_smtp_password",
-  "environment": "production"
+  "environment": "development"  
 }
 ```
 
@@ -40,11 +45,10 @@ Setting | Description
 `port` | The port that Featmap should run on.
 `emailFrom` | The email adress that should be used as sender when sending invitation and password reset mails.
 `smtpServer` | SMTP server for sending emails.
+`smtpPort` | **Optional** Will default to port 587 if not specified. 
 `smtpUser` | SMTP server username.
 `smtpPass` | SMTP server password.
-`environment` |  Optional. If set to `development`, the backend will not serve secure cookies.
-
-It is possible to run Featmap without filling in the mail details, but recovery emails and workspace invites will not be available.
+`environment` |  **Optional** If set to `development`, the backend will not serve secure cookies.
 
 ### Running
 Execute the binary.
@@ -54,7 +58,7 @@ Execute the binary.
 Serving on port 80
 ```
 
-Open a browser to http://localhost and you are ready to go!
+Open a browser to http://localhost and you are ready to go! If Featmap is not running on port 80, use http://localhost:port.
 
 ## Building
 
@@ -91,7 +95,42 @@ ls
 featmap-1.0.3-darwin-amd64  featmap-1.0.3-linux-amd64  featmap-1.0.3-windows-amd64.exe
 ```
 
+## Running with `docker-compose`
 
+Clone the repository
+
+```bash
+git clone https://github.com/amborle/featmap.git
+```
+
+Navigate to the repository.
+
+```bash
+cd featmap
+```
+
+Now let's build it (requires Bash).
+
+```bash
+docker-compose build
+```
+
+Create a `.env` file, and edit any defaults
+
+```bash
+cp config/env.sample .env
+```
+
+Create a configuration file by copying `config/conf.sample.json`, and make any appropriate changes from the env file for the database connection string
+
+```bash
+cp config/conf.sample.json config/conf.json
+```
+
+Startup the services, the app should now be available on the port you defined in your .env file. (Default: 8080)
+```bash
+docker-compose up -d
+```
 
 
 

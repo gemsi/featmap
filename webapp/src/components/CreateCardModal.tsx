@@ -6,7 +6,7 @@ import { createWorkflow, updateWorkflow, deleteWorkflow } from '../store/workflo
 import { createSubWorkflow, updateSubWorkflow, deleteSubWorkflow } from '../store/subworkflows/actions';
 import { createMilestone, updateMilestone, deleteMilestone } from '../store/milestones/actions';
 import { createFeature, updateFeature, deleteFeature } from '../store/features/actions';
-import { Formik, FormikActions, FormikProps, Form, Field, FieldProps } from 'formik';
+import { Formik, FormikHelpers, FormikProps, Form, Field, FieldProps } from 'formik';
 import { API_CREATE_WORKFLOW, API_CREATE_MILESTONE, API_CREATE_SUBWORKFLOW, API_CREATE_FEATURE } from "../api";
 import { v4 as uuid } from 'uuid'
 import * as Yup from 'yup';
@@ -129,7 +129,7 @@ class CreateCardModal extends Component<Props, State> {
 
               validationSchema={Schema}
 
-              onSubmit={(values: formValues, actions: FormikActions<formValues>) => {
+              onSubmit={(values: formValues, actions: FormikHelpers<formValues>) => {
                 const t = new Date().toISOString()
 
                 switch (parentProps.action.type) {
@@ -148,7 +148,8 @@ class CreateCardModal extends Component<Props, State> {
                       createdByName: parentProps.application.account === undefined ? "demo" : parentProps.application.account.name,
                       lastModified: t,
                       lastModifiedByName: parentProps.application.account === undefined ? "demo" : parentProps.application.account.name,
-                      color: Color.WHITE
+                      color: Color.WHITE,
+                      status: CardStatus.OPEN
                     }
                     parentProps.createWorkflow(optimisticWorkflow)
 
@@ -227,7 +228,8 @@ class CreateCardModal extends Component<Props, State> {
                       createdByName: parentProps.application.account === undefined ? "demo" : parentProps.application.account.name,
                       lastModified: t,
                       lastModifiedByName: parentProps.application.account === undefined ? "demo" : parentProps.application.account.name,
-                      color: Color.NONE
+                      color: Color.NONE,
+                      status: CardStatus.OPEN
                     }
                     parentProps.createSubWorkflow(optimisticSubMilestone)
 
@@ -289,8 +291,8 @@ class CreateCardModal extends Component<Props, State> {
                 }
               }
               }
-
-              render={(formikBag: FormikProps<formValues>) => (
+            >
+              {(formikBag: FormikProps<formValues>) => (
                 <Form>
                   {formikBag.status && formikBag.status.msg && <div>{formikBag.status.msg}</div>}
 
@@ -301,25 +303,26 @@ class CreateCardModal extends Component<Props, State> {
 
                       <Field
                         name="title"
-                        render={({ field, form }: FieldProps<formValues>) => (
-
+                      >
+                        {({ form }: FieldProps<formValues>) => (
                           <div className="flex flex-col">
-                            <div><input autoFocus type="text" {...field} placeholder="Title" id="title" className="rounded p-2 border w-full	"/></div>
+                            <div><input autoFocus type="text" value={form.values.title} onChange={form.handleChange} placeholder="Title" id="title" className="rounded p-2 border w-full	" /></div>
                             <div className="p-1 text-red-500 text-xs font-bold">{form.touched.title && form.errors.title}</div>
                           </div>
-
                         )}
-                      />
+
+
+                      </Field>
                     </div>
 
                     <div className="flex justify-end">
                       <div className="flex flex-row">
 
                         <div className="mr-1">
-                          <Button primary submit title="Create"/>
+                          <Button primary submit title="Create" />
                         </div>
                         <div>
-                          <Button title="Cancel" handleOnClick={this.props.close}/>
+                          <Button title="Cancel" handleOnClick={this.props.close} />
                         </div>
                       </div>
                     </div>
@@ -327,7 +330,7 @@ class CreateCardModal extends Component<Props, State> {
 
                 </Form>
               )}
-            />
+            </Formik>
           </div>
         )
 
@@ -339,7 +342,7 @@ class CreateCardModal extends Component<Props, State> {
 
     return (
       <div style={{ background: ' rgba(0,0,0,.75)' }} className="fixed p-10 z-10 top-0 left-0 w-full h-full flex items-start justify-center bg-gray-100 text-sm">
-        <DialogWithClickOutside close={this.props.close}/>
+        <DialogWithClickOutside close={this.props.close} />
       </div>
     );
   }

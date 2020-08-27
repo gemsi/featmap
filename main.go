@@ -31,6 +31,7 @@ type Configuration struct {
 	Port               string `json:"port"`
 	EmailFrom          string `json:"emailFrom"`
 	SMTPServer         string `json:"smtpServer"`
+	SMTPPort           string `json:"smtpPort"`
 	SMTPUser           string `json:"smtpUser"`
 	SMTPPass           string `json:"smtpPass"`
 }
@@ -113,8 +114,7 @@ func main() {
 
 	files := &assetfs.AssetFS{
 		Asset:     webapp.Asset,
-		AssetDir:  webapp.AssetDir,
-		AssetInfo: webapp.AssetInfo,
+		AssetDir:  webapp.AssetDir,		
 		Prefix:    "webapp/build/static",
 	}
 
@@ -126,7 +126,11 @@ func main() {
 	})
 
 	fmt.Println("Serving on port " + config.Port)
-	_ = http.ListenAndServe(":"+config.Port, r)
+	err = http.ListenAndServe(":"+config.Port, r)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 }
 
 func readConfiguration() (Configuration, error) {
@@ -141,6 +145,11 @@ func readConfiguration() (Configuration, error) {
 	decoder := json.NewDecoder(file)
 	configuration := Configuration{}
 	err = decoder.Decode(&configuration)
+
+	if configuration.SMTPPort == "" {
+		configuration.SMTPPort = "587"
+	}
+
 	return configuration, err
 }
 

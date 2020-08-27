@@ -7,7 +7,10 @@ import { moveMilestone, updateMilestone } from '../store/milestones/actions';
 import { moveWorkflow, updateWorkflow } from '../store/workflows/actions';
 import { moveSubWorkflow, updateSubWorkflow } from '../store/subworkflows/actions';
 import { AppState } from '../store'
-import { getSubWorkflowByWorkflow } from '../store/subworkflows/selectors';
+import {
+  filterOutClosedSubWorkflows, getNbrOfClosedSubWorkflows,
+  getSubWorkflowByWorkflow
+} from '../store/subworkflows/selectors';
 import { filterFeaturesOnMilestoneAndSubWorkflow, filterFeaturesOnMilestone, closedFeatures } from '../store/features/selectors';
 import { application } from '../store/application/selectors';
 import { connect } from 'react-redux'
@@ -23,6 +26,7 @@ import { API_MOVE_MILESTONE, API_MOVE_FEATURE, API_MOVE_SUBWORKFLOW, API_MOVE_WO
 import NewCard from './NewCard';
 import { CardStatus } from '../core/misc';
 import NewDimCard from './NewDimCard';
+import {filterOutClosedWorkflows} from "../store/workflows/selectors";
 
 
 interface SelfProps {
@@ -34,7 +38,7 @@ interface SelfProps {
   features: IFeature[]
   url: string,
   viewOnly: boolean
-  showClosedMilstones: boolean
+  showClosed: boolean
   demo: boolean
 }
 
@@ -301,7 +305,7 @@ class Board extends Component<Props, State> {
                     <p>
                       <Button primary title="Add goal" icon="add" noborder handleOnClick={() => this.setState({ showCreateWorkflowModal: true })} />
                     </p>
-                    <p>This board is empty, please start by adding a <b>user goal</b>. If you are new to user story mapping, have a look at <em><a className="link" target={"_blank"} href={"http://www.featmap.com/storymapping"}>An introduction to story mapping</a></em> or an <a className="link" target={"_blank"} href={"https://app.featmap.com/link/e31ddff9-7138-4db7-b340-af0c2217b417?demo=1"}>example story map</a>.</p>
+                    <p>This board is empty, please start by adding a <b>user goal</b>. If you are new to user story mapping, have a look at <em><a className="link" target={"_blank"}  rel="noopener noreferrer" href={"http://www.featmap.com/storymapping"}>An introduction to story mapping</a></em> or an <a className="link"  rel="noopener noreferrer" target={"_blank"} href={"https://app.featmap.com/link/e31ddff9-7138-4db7-b340-af0c2217b417?demo=1"}>example story map</a>.</p>
 
                   </div>
 
@@ -309,6 +313,11 @@ class Board extends Component<Props, State> {
                   <div>
                     <Droppable droppableId={"w"} type="WORKFLOW" direction="horizontal">
                       {(providedDroppable: DroppableProvided, snapshotDroppable: DroppableStateSnapshot) => {
+
+                        var ww = workflows
+                        if(!this.props.showClosed) {
+                           ww = filterOutClosedWorkflows(ww)
+                        }
 
                         return (
                             <div className="flex">
@@ -321,7 +330,15 @@ class Board extends Component<Props, State> {
                                     <EmptyCard />
                                   </div>
 
-                                  {workflows.map((w, index) => {
+                                  {
+                                    ww.map((w, index) => {
+                                    var ss = getSubWorkflowByWorkflow(subWorkflows, w.id)
+                                    var nbrOfClosedSubWorkflows = 0
+                                    if(!this.props.showClosed) {
+                                      nbrOfClosedSubWorkflows =  getNbrOfClosedSubWorkflows(ss)
+                                      ss = filterOutClosedSubWorkflows(ss)
+                                    }
+
                                         return [
                                           <Draggable
                                               isDragDisabled={viewOnly}
@@ -338,14 +355,12 @@ class Board extends Component<Props, State> {
                                                          providedDraggable.draggableProps.style
                                                      )}>
 
-
                                                   <div className="flex flex-col bg-gray-100">
-                                                    <div className="flex flex-grow m-1 "><Card color={w.color} title={w.title} link={this.props.url + "/w/" + w.id} /></div>
+                                                    <div className="flex flex-grow m-1 "><Card status={w.status} bottomStatus={nbrOfClosedSubWorkflows > 0 ? nbrOfClosedSubWorkflows +" closed activities" :""} color={w.color} title={w.title} link={this.props.url + "/w/" + w.id} /></div>
                                                     <div className="flex flex-row fm-paren">
                                                       <Droppable key={"w" + w.id} droppableId={"sw*" + w.id} type="SUBWORKFLOW" direction="horizontal">
                                                         {(providedDroppable: DroppableProvided, snapshotDroppable: DroppableStateSnapshot) => {
-                                                          {
-                                                            const ss = getSubWorkflowByWorkflow(subWorkflows, w.id)
+                                                          
                                                             return (
                                                                 <div className="flex flex-row"
                                                                      ref={providedDroppable.innerRef}
@@ -381,11 +396,10 @@ class Board extends Component<Props, State> {
                                                                                        providedDraggable.draggableProps.style
                                                                                    )}>
                                                                                 <div className="flex  w-full">
-                                                                                  <Card color={sw.color} title={sw.title} link={this.props.url + "/sw/" + sw.id} rightLink={index === ss.length - 1 && !viewOnly ? () => this.setState({ showCreateSubWorkflowModal: true, createSubWorkflowWorkflowId: w.id }) : undefined} />
+                                                                                  <Card status={sw.status} color={sw.color} title={sw.title} link={this.props.url + "/sw/" + sw.id} rightLink={index === ss.length - 1 && !viewOnly ? () => this.setState({ showCreateSubWorkflowModal: true, createSubWorkflowWorkflowId: w.id }) : undefined} />
                                                                                 </div>
 
-                                                                              </div>
-                                                                              {providedDraggable.placeholder}
+                                                                              </div>                                                                              
                                                                             </div>
                                                                         )}
                                                                       </Draggable>
@@ -396,7 +410,7 @@ class Board extends Component<Props, State> {
 
                                                                 </div>
                                                             )
-                                                          }
+                                                          
                                                         }
                                                         }
                                                       </Droppable>
@@ -441,7 +455,12 @@ class Board extends Component<Props, State> {
                                 {
                                   milestones
                                       .map((m, index) => {
-                                            const closed = !this.props.showClosedMilstones && m.status === CardStatus.CLOSED
+                                            const closed = !this.props.showClosed && m.status === CardStatus.CLOSED
+
+                                        var ww = workflows
+                                        if(!this.props.showClosed) {
+                                          ww = filterOutClosedWorkflows(ww)
+                                        }
                                             return [
                                               <Draggable
                                                   isDragDisabled={viewOnly}
@@ -482,9 +501,13 @@ class Board extends Component<Props, State> {
 
                                                                 </div>
 
-                                                                {workflows.map((w) => {
+                                                                {ww.map((w) => {
 
-                                                                  const ss = getSubWorkflowByWorkflow(subWorkflows, w.id)
+                                                                  var ss = getSubWorkflowByWorkflow(subWorkflows, w.id)
+                                                                  if ( !this.props.showClosed ) {
+                                                                    ss = filterOutClosedSubWorkflows(ss)
+                                                                  }
+
                                                                   return [
                                                                     <div className="flex flex-row pl-1 pr-1" key={w.id}>
                                                                       {ss.length === 0 ?
@@ -523,8 +546,7 @@ class Board extends Component<Props, State> {
                                                                                                          )}>
 
                                                                                                       <Card color={f.color} status={f.status} title={f.title} link={this.props.url + "/f/" + f.id} bottomLink={index === ff.length - 1 && !viewOnly ? () => this.setState({ showCreateFeatureModal: true, createFeatureModalMilestoneId: m.id, createFeatureModalSubWorkflowId: sw.id }) : undefined} />
-                                                                                                    </div>
-                                                                                                    {providedDraggable.placeholder}
+                                                                                                    </div>                                                                                                    
                                                                                                   </div>
                                                                                               )}
                                                                                             </Draggable>
